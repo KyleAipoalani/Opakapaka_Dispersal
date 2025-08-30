@@ -1,1 +1,4 @@
 .Rhistory
+
+# ignore the entire ROMS data folder
+ROMS/
