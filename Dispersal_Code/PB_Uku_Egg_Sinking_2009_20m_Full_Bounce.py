@@ -31,12 +31,12 @@ from scipy import interpolate
 
 
 def EggHatchingMovement(particle, fieldset, time):
-    eggdepth = 0.25 # egg depth in m
-    larvadepth = 20  # larval drift depth in m
-    drifttime =  45* 86400  # time of deep drift in seconds
-    eggtime=1*86400
-    vertical_speed = 0.02  # sink and rise speed in m/s
-    driftdepth=20
+    eggdepth = 2                # No direct egg-depth data, inferred from general pelagic egg behavior *** https://scholarspace.manoa.hawaii.edu/server/api/core/bitstreams/1afbbb1c-fd8a-4bf7-a6fa-45c9750e77b6/content
+    larvadepth = 40             # larvae inhabit surface to mid-water, ~30–50 m
+    drifttime =  55*86400       # ~55 days pelagic larval duration (~30–60 days reported for deepwater snappers) (days*seconds) *** https://doi.org/10.3354/meps09272
+    eggtime=1*86400             # ~24 hrs incubation (day*seconds) *** https://www.publish.csiro.au/MF/MF17195
+    vertical_speed = 0.005      # ??? *** https://doi.org/10.3354/meps09272
+    driftdepth = 80             # juvenile settlement habitat midpoint (~60–100 m, extend deeper to 210 m as adults)
 
     if particle.cycle_phase == 0:
         # Phase 0:particle is an egg and has yet to hatch
