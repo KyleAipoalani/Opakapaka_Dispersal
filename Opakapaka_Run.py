@@ -1059,7 +1059,7 @@ import numpy as np, pandas as pd, xarray as xr
 
 # A) Load the habitat CSV file
 # This file lists possible release spots for Opakapaka, with their longitude, latitude, and weights.
-release_csv = r"C:\Users\Trevell\OneDrive\Documents\Opakapaka\roms\2015\60_100m\Opakapaka_General_Habitat_PB.csv"
+release_csv = r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/Opakapaka_General_Habitat_PB.csv"
 df = pd.read_csv(release_csv, header=None, names=["id", "lon", "lat", "weight"])
 
 # Turn the longitude and latitude columns into regular arrays so we can work with them easily.
