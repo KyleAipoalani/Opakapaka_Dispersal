@@ -1678,7 +1678,7 @@ from parcels import ParticleSet
 import numpy as np
 
 release_interval_days = 1   # 👈 changed to daily releases
-n_release_periods = 3
+n_release_periods = 120
 
 release_interval_sec = release_interval_days * 86400
 
