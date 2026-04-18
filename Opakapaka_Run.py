@@ -125,7 +125,7 @@ import os
 
 folders = [
     r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2009/0.25_10_20_30_40_50_60m",
-    r" /Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
 
 ]
 
@@ -198,7 +198,7 @@ import xarray as xr
 
 folders = [
     r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2009/0.25_10_20_30_40_50_60m",
-    r" /Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
 ]
 
 # ============================================================
