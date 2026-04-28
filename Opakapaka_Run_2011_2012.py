@@ -119,8 +119,7 @@ import glob
 import os
 
 # ============================================================
-# YOUR FOLDER PATHS (EDIT THESE IF NEEDED)  this is what it should be named( yr_2009_06_depth_30m.nc)
-
+# CHANGE THESE FOLDER PATHS FOR SPECIFIED RUN'S YEAR(S) 
 # ============================================================
 
 folders = [
