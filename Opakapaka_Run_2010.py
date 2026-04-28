@@ -123,8 +123,8 @@ import os
 # ============================================================
 
 folders = [
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2009/0.25_10_20_30_40_50_60m",
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m",
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m"
 
 ]
 
@@ -196,8 +196,8 @@ import xarray as xr
 # ============================================================
 
 folders = [
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2009/0.25_10_20_30_40_50_60m",
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m",
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m"
 ]
 
 # ============================================================
@@ -347,7 +347,7 @@ else:
 tsec_int = np.round(tsec).astype("int64")  # safer than float -> timedelta directly
 tdt = origin64 + tsec_int.astype("timedelta64[s]")
 
-YEAR = 2009
+YEAR = 2010
 start_target = np.datetime64(f"{YEAR}-06-01T00:00:00")
 end_target   = np.datetime64(f"{YEAR}-10-01T00:00:00")  # June..Sep (end is Oct 1)
 
@@ -455,7 +455,7 @@ fieldset = FieldSet.from_netcdf(filenames, variables, dimensions,interp_method={
 
 # In[12]:
 
-file_path_fine = r"/Users/justin.suca/Documents/TPruitt/ROMS/2009/0.25_1_5_10_20_30_50m"
+file_path_fine = r"/Users/justin.suca/Documents/TPruitt/ROMS/2010/0.25_1_5_10_20_30_50m"
 lon_grid = np.asarray(fieldset.U.grid.lon)
 lat_grid = np.asarray(fieldset.U.grid.lat)
 
@@ -1777,7 +1777,7 @@ print("start_time (sec):", start_time)
 print("end_time   (sec):", end_time)
 print("runtime days:", (end_time - start_time)/86400)
 
-print("start_dt:", all_times[all_times >= np.datetime64("2009-06-01")][0])
+print("start_dt:", all_times[all_times >= np.datetime64("2010-06-01")][0])
 print("all_times max:", all_times.max())
 
 
@@ -1845,7 +1845,7 @@ from parcels import ErrorCode
 # =========================
 total_runtime_days = 300      # test run first
 chunk_days = 1                # mortality checked once per day
-output_name = "OpakapakaOutput.zarr"
+output_name = "OpakapakaOutput_2010.zarr"
 # =========================
 
 kernels = build_kernels(pset)
