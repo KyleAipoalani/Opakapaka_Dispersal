@@ -15,47 +15,154 @@ library(viridis)
 xr <- import("xarray")
 np <- import("numpy")
 pd <- import("pandas")
+library(reticulate)
 
+zarr <- import("zarr")
 
-
-## dataset
 zarr_path <- "/Users/justin.suca/Documents/TPruitt/Python Script/OpakapakaOutput_2010_30m.zarr"
-ds <- xr$open_zarr(zarr_path)
-# print(ds)
-# py_to_r(ds$data_vars$keys())
 
-# 60–180 day connectivity matrix ========================
+zg <- zarr$open_group(zarr_path, mode = "r")
 
-release_lon <- as.numeric(ds$lon$isel(list(obs = 0L))$values)
-release_lat <- as.numeric(ds$lat$isel(list(obs = 0L))$values)
+lon_arr <- py_to_r(zg[["lon"]]$`__getitem__`(tuple()))
+lat_arr <- py_to_r(zg[["lat"]]$`__getitem__`(tuple()))
+age_arr <- py_to_r(zg[["age"]]$`__getitem__`(tuple()))
+settled_arr <- py_to_r(zg[["settled"]]$`__getitem__`(tuple()))
+settle_region_arr <- py_to_r(zg[["settle_region"]]$`__getitem__`(tuple()))
 
-# use xarray to get:
-# 1. whether each particle ever settled
-# 2. settlement region across the whole run
-# 3. particle age at the moment it first/ever settled
-py$ds_r <- ds
+min_obs <- min(
+  ncol(lon_arr),
+  ncol(lat_arr),
+  ncol(age_arr),
+  ncol(settled_arr),
+  ncol(settle_region_arr)
+)
 
-py_run_string("
-import numpy as np
+lon_arr <- lon_arr[, 1:min_obs]
+lat_arr <- lat_arr[, 1:min_obs]
+age_arr <- age_arr[, 1:min_obs]
+settled_arr <- settled_arr[, 1:min_obs]
+settle_region_arr <- settle_region_arr[, 1:min_obs]
 
-ever_settled = ds_r['settled'].max(dim='obs').values
-settle_region_any = ds_r['settle_region'].max(dim='obs').values
+cat("Loaded fixed arrays with", min_obs, "time steps\n")
 
-# age where settled == 1, then minimum age among settled timesteps
-age_at_settle = ds_r['age'].where(ds_r['settled'] == 1).min(dim='obs').values
-")
+# ============================================================
+# RELEASE LOCATIONS
+# ============================================================
 
-settled <- as.integer(py$ever_settled)
-settle_region <- as.integer(py$settle_region_any)
-age_at_settle_days <- as.numeric(py$age_at_settle) / 86400
+release_lon <- lon_arr[, 1]
+release_lat <- lat_arr[, 1]
 
-# keep only particles that settled between 60 and 180 days
-valid <- (settled == 1) &
-  !is.na(age_at_settle_days) &
-  age_at_settle_days >= 60 &
-  age_at_settle_days <= 180
+# ============================================================
+# FIRST-ENTRY SETTLEMENT POINTS
+# ============================================================
 
-# classify release region using starting lon/lat
+first_settle_obs <- apply(settled_arr, 1, function(x) {
+  idx <- which(x == 1)
+  if (length(idx) == 0) NA_integer_ else idx[1]
+})
+
+settled_particles <- which(!is.na(first_settle_obs))
+first_idx <- first_settle_obs[settled_particles]
+
+first_lon <- lon_arr[cbind(settled_particles, first_idx)]
+first_lat <- lat_arr[cbind(settled_particles, first_idx)]
+first_age_days <- age_arr[cbind(settled_particles, first_idx)] / 86400
+first_region <- settle_region_arr[cbind(settled_particles, first_idx)]
+
+valid_pld <- first_age_days >= 60 &
+  first_age_days <= 180 &
+  is.finite(first_lon) &
+  is.finite(first_lat) &
+  first_region >= 0
+
+first_lon_plot <- first_lon[valid_pld]
+first_lat_plot <- first_lat[valid_pld]
+
+cat("Total particles:", nrow(lon_arr), "\n")
+cat("Ever settled:", length(settled_particles), "\n")
+cat("Settled inside 60–180 days:", length(first_lon_plot), "\n")
+
+# ============================================================
+# BATHYMETRY + HABITAT MASK
+# ============================================================
+
+bathy_path <- "/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/ETOPO_2022 (Bedrock; 15 arcseconds).tiff"
+
+bathy <- rast(bathy_path)
+
+hawaii_extent <- ext(-161.5, -154.5, 18.0, 22.5)
+bathy_crop <- crop(bathy, hawaii_extent)
+
+habitat_band <- bathy_crop <= -40 & bathy_crop >= -60
+
+km_per_cell <- 0.463
+buffer_km <- 6
+buffer_cells <- ceiling(buffer_km / km_per_cell)
+
+r <- buffer_cells
+x <- -r:r
+y <- -r:r
+
+w <- outer(x, y, function(a, b) sqrt(a^2 + b^2) <= r)
+w <- matrix(as.numeric(w), nrow = length(x), ncol = length(y))
+
+habitat_mask <- focal(
+  habitat_band,
+  w = w,
+  fun = max,
+  na.policy = "omit",
+  fillvalue = 0
+)
+
+habitat_mask <- habitat_mask & (bathy_crop < 0)
+
+# ============================================================
+# PLOT 1: FIRST-ENTRY SETTLEMENT MAP
+# ============================================================
+
+png("~/Documents/2010_first_entry_settlement_locations.png", width = 2200, height = 1500, res = 250)
+
+plot(
+  bathy_crop,
+  col = hcl.colors(120, "viridis"),
+  main = "2010 First-Entry Settlement Locations",
+  xlab = "Longitude",
+  ylab = "Latitude",
+  axes = TRUE,
+  legend = FALSE
+)
+
+contour(
+  habitat_mask,
+  levels = 0.5,
+  add = TRUE,
+  drawlabels = FALSE,
+  col = "orange",
+  lwd = 2
+)
+
+points(
+  first_lon_plot,
+  first_lat_plot,
+  pch = 16,
+  cex = 0.19,
+  col = rgb(1, 1, 0, 0.75)
+)
+
+text(-158.95, 22.12, "Kauai", col = "white", cex = 0.9)
+text(-159.90, 21.65, "Niihau", col = "white", cex = 0.9)
+text(-160.60, 21.20, "Kaula", col = "white", cex = 0.9)
+text(-158.05, 21.95, "Oahu", col = "white", cex = 0.9)
+text(-157.85, 20.60, "Penguin Bank", col = "white", cex = 0.8)
+text(-156.95, 21.45, "Maui Nui", col = "white", cex = 0.9)
+text(-155.70, 19.80, "Hawaii", col = "white", cex = 0.9)
+
+dev.off()
+
+# ============================================================
+# CONNECTIVITY MATRIX
+# ============================================================
+
 classify_release <- function(lon, lat) {
   if (lon >= -160.75 && lon <= -160.45 && lat >= 21.50 && lat <= 21.72) return("Kaula")
   if (lon >= -160.30 && lon <= -159.95 && lat >= 21.75 && lat <= 22.05) return("Niihau")
@@ -79,26 +186,237 @@ region_names <- c(
   "6" = "Hawaii"
 )
 
-settle_name <- region_names[as.character(settle_region)]
+settle_region_first <- first_region[valid_pld]
+settle_name <- region_names[as.character(settle_region_first)]
 
-release_valid <- release_name[valid]
-settle_valid <- settle_name[valid]
+release_valid <- release_name[settled_particles][valid_pld]
 
-connectivity_counts_60_180 <- table(release_valid, settle_valid)
+connectivity_counts <- table(release_valid, settle_name)
 
-cat("\n=== PARTICLES SETTLED BETWEEN 60–180 DAYS ===\n")
-print(sum(valid, na.rm = TRUE))
-
-cat("\n=== CONNECTIVITY MATRIX COUNTS (60–180 days only) ===\n")
-print(connectivity_counts_60_180)
-
-connectivity_percent_60_180 <- round(
-  prop.table(connectivity_counts_60_180, 1) * 100,
+connectivity_percent <- round(
+  prop.table(connectivity_counts, 1) * 100,
   2
 )
 
-cat("\n=== CONNECTIVITY MATRIX PERCENT (60–180 days only) ===\n")
-print(connectivity_percent_60_180)
+print(connectivity_percent)
+
+# ============================================================
+# PLOT 2: HEATMAP
+# ============================================================
+
+heat_df <- as.data.frame(as.table(connectivity_percent))
+names(heat_df) <- c("Release", "Settlement", "Percent")
+
+heat_df <- heat_df %>%
+  filter(Release != "Ocean", Settlement != "Ocean")
+
+heat_df$Release <- gsub("_", " ", heat_df$Release)
+heat_df$Settlement <- gsub("_", " ", heat_df$Settlement)
+
+region_order <- c("HawaiiKauai", "Maui Nui", "Penguin Bank", "Oahu", "Kauai", "Niihau", "Kaula")
+
+heat_df$Release <- factor(heat_df$Release, levels = region_order)
+heat_df$Settlement <- factor(heat_df$Settlement, levels = region_order)
+
+heatmap_plot <- ggplot(heat_df, aes(x = Settlement, y = Release, fill = Percent)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  scale_fill_gradient(
+    name = "Settlement (%)",
+    low = "white",
+    high = "#6A0DAD"
+  ) +
+  labs(
+    title = "Larval Connectivity Between Hawaiian Islands",
+    subtitle = "2010 Opakapaka (June–September, 30 m depth, 60–180 day PLD)",
+    x = "Settlement Region",
+    y = "Release Region"
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    plot.title = element_text(size = 26, face = "bold"),
+    plot.subtitle = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_text(size = 16),
+    legend.text = element_text(size = 13),
+    panel.grid = element_blank()
+  )
+
+ggsave(
+  "2010_connectivity_heatmap_clean.png",
+  heatmap_plot,
+  width = 10,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+# ============================================================
+# PLOT 3: PARTICLE TRAJECTORY / DISPERSAL SNAPSHOT
+# ============================================================
+
+
+particle_lon <- as.vector(lon_arr)
+particle_lat <- as.vector(lat_arr)
+
+valid_particles <- is.finite(particle_lon) & is.finite(particle_lat)
+
+particle_df <- data.frame(
+  lon = particle_lon[valid_particles],
+  lat = particle_lat[valid_particles]
+)
+# ============================================================
+# PLOT 3: DENSE PARTICLE DISPERSAL MAP - OCEAN ONLY
+# ============================================================
+
+# flatten all particle positions across all saved timesteps
+particle_lon <- as.vector(lon_arr)
+particle_lat <- as.vector(lat_arr)
+
+# remove bad values
+valid_particles <- is.finite(particle_lon) & is.finite(particle_lat)
+
+particle_df <- data.frame(
+  lon = particle_lon[valid_particles],
+  lat = particle_lat[valid_particles]
+)
+
+# remove particles on land using bathymetry
+bathy_vals <- terra::extract(
+  bathy_crop,
+  particle_df[, c("lon", "lat")]
+)
+
+ocean_keep <- is.finite(bathy_vals[, 2]) & bathy_vals[, 2] < 0
+
+particle_df_ocean <- particle_df[ocean_keep, ]
+
+cat("Ocean particle points plotted:", nrow(particle_df_ocean), "\n")
+
+# optional: thin only if too many points
+set.seed(1)
+max_points <- 1000000
+
+if (nrow(particle_df_ocean) > max_points) {
+  particle_df_ocean <- particle_df_ocean[
+    sample(seq_len(nrow(particle_df_ocean)), max_points),
+  ]
+}
+
+png("~/Documents/2010_particle_dispersal_dense_ocean_only.png",
+    width = 2200, height = 1500, res = 250)
+
+plot(
+  particle_df_ocean$lon,
+  particle_df_ocean$lat,
+  pch = 16,
+  cex = 0.05,
+  col = rgb(0.75, 0.35, 0.05, 0.25),
+  xlim = c(-161.3, -154.6),
+  ylim = c(18.4, 22.5),
+  xlab = "Longitude",
+  ylab = "Latitude",
+  main = "2010 Opakapaka Particle Dispersal"
+)
+
+points(
+  release_lon,
+  release_lat,
+  pch = 16,
+  cex = 0.12,
+  col = rgb(0.1, 0.35, 0.9, 0.55)
+)
+
+legend(
+  "topright",
+  legend = c("Release", "Particles"),
+  col = c(rgb(0.1, 0.35, 0.9, 0.6), rgb(0.75, 0.35, 0.05, 0.6)),
+  pch = 16,
+  pt.cex = 1.2,
+  bty = "n"
+)
+
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##############################
+
+
+target_obs <- min_obs
+
+lon_target <- lon_arr[, target_obs]
+lat_target <- lat_arr[, target_obs]
+
+valid_target <- is.finite(lon_target) & is.finite(lat_target)
+
+set.seed(1)
+keep_release <- sample(seq_along(release_lon), min(500000, length(release_lon)))
+keep_target <- sample(which(valid_target), min(500000, sum(valid_target)))
+
+png("2010_particle_dispersal_snapshot1.png", width = 2200, height = 1500, res = 250)
+
+plot(
+  release_lon[keep_release],
+  release_lat[keep_release],
+  pch = 16,
+  cex = 0.18,
+  col = rgb(0.1, 0.35, 0.9, 0.35),
+  xlim = c(-161.3, -154.6),
+  ylim = c(18.4, 22.5),
+  xlab = "Longitude",
+  ylab = "Latitude",
+  main = "2010 Opakapaka Particle Dispersal Snapshot"
+)
+
+points(
+  lon_target[keep_target],
+  lat_target[keep_target],
+  pch = 16,
+  cex = 0.25,
+  col = rgb(1, 0.45, 0, 0.65)
+)
+
+legend(
+  "topright",
+  legend = c("Release", "Particles"),
+  col = c(rgb(0.1, 0.35, 0.9, 0.6), rgb(1, 0.45, 0, 0.7)),
+  pch = 16,
+  pt.cex = 1.2,
+  bty = "n"
+)
+
+dev.off()
+
+
+
+
+
+
+
 
 library(gridExtra)
 library(grid)
