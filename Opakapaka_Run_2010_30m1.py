@@ -1851,7 +1851,7 @@ from parcels import ErrorCode
 # =========================
 total_runtime_days = 300      # test run first
 chunk_days = 1                # mortality checked once per day
-output_name = "OpakapakaOutput_2010_30m.zarr"
+output_name = "OpakapakaOutput_2010_30m1.zarr"
 # =========================
 
 kernels = build_kernels(pset)
