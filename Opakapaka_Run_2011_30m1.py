@@ -123,8 +123,8 @@ import os
 # ============================================================
 
 folders = [
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m",
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m",
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2012/0.25_10_20_30_40_50_60m"
 
 ]
 
@@ -196,8 +196,8 @@ import xarray as xr
 # ============================================================
 
 folders = [
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2010/0.25_10_20_30_40_50_60m",
-    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m"
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2011/0.25_10_20_30_40_50_60m",
+    r"/Users/justin.suca/Documents/TPruitt/ROMS(0-50)/2012/0.25_10_20_30_40_50_60m"
 ]
 
 # ============================================================
@@ -455,7 +455,7 @@ fieldset = FieldSet.from_netcdf(filenames, variables, dimensions,interp_method={
 
 # In[12]:
 
-file_path_fine = r"/Users/justin.suca/Documents/TPruitt/ROMS/2010/0.25_1_5_10_20_30_50m"
+file_path_fine = r"/Users/justin.suca/Documents/TPruitt/ROMS/2011/0.25_1_5_10_20_30_50m"
 lon_grid = np.asarray(fieldset.U.grid.lon)
 lat_grid = np.asarray(fieldset.U.grid.lat)
 
@@ -1851,7 +1851,7 @@ from parcels import ErrorCode
 # =========================
 total_runtime_days = 300      # test run first
 chunk_days = 1                # mortality checked once per day
-output_name = "OpakapakaOutput_2010_30m1.zarr"
+output_name = "OpakapakaOutput_2011_30m1.zarr"
 # =========================
 
 kernels = build_kernels(pset)
