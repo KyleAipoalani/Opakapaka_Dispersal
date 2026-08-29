@@ -347,26 +347,39 @@ else:
 tsec_int = np.round(tsec).astype("int64")  # safer than float -> timedelta directly
 tdt = origin64 + tsec_int.astype("timedelta64[s]")
 
-YEAR = 2010
+YEAR = 2011
 start_target = np.datetime64(f"{YEAR}-06-01T00:00:00")
 end_target   = np.datetime64(f"{YEAR}-10-01T00:00:00")  # June..Sep (end is Oct 1)
 
-mask_win = (tdt >= start_target) & (tdt < end_target)
+# Verify the requested June-Sep window using the actual decoded ROMS timestamps.
+raw_mask_win = (all_times >= start_target) & (all_times < end_target)
 
-print("Times in window:", int(mask_win.sum()))
-print("Window start dt:", tdt[mask_win][0] if mask_win.any() else None)
-print("Window end dt  :", tdt[mask_win][-1] if mask_win.any() else None)
+print("Raw ROMS times in window:", int(raw_mask_win.sum()))
+print("Raw window start dt:", all_times[raw_mask_win][0] if raw_mask_win.any() else None)
+print("Raw window end dt  :", all_times[raw_mask_win][-1] if raw_mask_win.any() else None)
 
-if not mask_win.any():
-    raise ValueError("No timestamps found in June–Sep window. (Likely your FieldSet only includes 1 month.)")
+if not raw_mask_win.any():
+    raise ValueError(
+        f"No ROMS timestamps found for June-Sep {YEAR}. "
+        "Check the 2011/2012 input files."
+    )
 
-# IMPORTANT: start_time/end_time must be SECONDS (for Parcels)
-start_time = float(tsec[mask_win][0])
-end_time   = float(tsec[mask_win][-1])
+# Convert requested dates directly into Parcels seconds relative to its time origin.
+start_time = float((start_target - origin64) / np.timedelta64(1, "s"))
+end_time   = float((end_target - origin64) / np.timedelta64(1, "s"))
 
 print("Chosen start_time (sec):", start_time)
 print("Chosen end_time   (sec):", end_time)
-print(" number of days/runtime days:", (end_time - start_time) / 86400.0)
+print("number of days/runtime days:", (end_time - start_time) / 86400.0)
+
+# Final safety check against the available ROMS data range.
+if start_target < all_times.min() or end_target > all_times.max():
+    raise ValueError(
+        f"Requested {YEAR} simulation window falls outside available ROMS data: "
+        f"{all_times.min()} to {all_times.max()}"
+    )
+
+print(f"{YEAR} June-September window is inside available ROMS data.")
 
 
 # In[12]:
