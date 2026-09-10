@@ -1340,17 +1340,16 @@ fieldset.add_constant("PLD_MAX_SEC", PLD_MAX_DAYS * 86400)
 # In[40]:
 
 
-# ===============================
-# DAILY DECAYING MORTALITY SETTINGS
-# ===============================
+INITIAL_MORTALITY_RATE = 0.10    # Day 1 = 10%
+MORTALITY_DECAY = 0.90           # Day 2 = 9%, Day 3 = 8.1%, etc.
 
-INITIAL_MORTALITY_RATE = 0.10   # Day 1 = 10%
-MORTALITY_DECAY = 0.90          # Day 2 = 9%, Day 3 = 8.1%, etc.
+MIN_MORTALITY_RATE = 0.001       # Floor = 0.1%
+MAX_MORTALITY_DAY = 180          # Continue through Day 180
 
-print("Initial mortality rate:", INITIAL_MORTALITY_RATE)
+print("Initial mortality rate:", INITIAL_MORTALITY_RATE * 100, "%")
 print("Mortality decay factor:", MORTALITY_DECAY)
-
-
+print("Minimum mortality rate:", MIN_MORTALITY_RATE * 100, "%")
+print("Last mortality day:", MAX_MORTALITY_DAY)
 # In[41]:
 
 
@@ -1596,100 +1595,195 @@ import numpy as np
 
 rng = np.random.default_rng(42)
 
-# Tracks the last cohort-day that received mortality.
+# Tracks the last cohort-day that received mortality
 mortality_last_day = {}
+
 
 def apply_chunked_mortality(
     pset,
     initial_rate=0.10,
-    decay_factor=0.90
+    decay_factor=0.90,
+    min_rate=0.001,
+    max_mortality_day=180
 ):
     """
-    Apply mortality separately to each release cohort once per completed
-    cohort-day.
+    Apply mortality separately to each release cohort.
 
-    Day 1 = 10.00%
-    Day 2 =  9.00%
-    Day 3 =  8.10%
-    Day 4 =  7.29%
-    ...
+    Mortality begins at:
+        Day 1 = 10%
+        Day 2 = 9%
+        Day 3 = 8.1%
+        ...
 
-    The percentage is applied to particles that are still alive and
-    unsettled in that cohort.
+    The rate continues decreasing until it reaches 0.1%.
+
+    Once it reaches 0.1%, mortality stays at 0.1%
+    per day through Day 180.
+
+    Mortality only applies to particles that are:
+        alive == 1
+        settled == 0
     """
+
     particles = [p for p in pset]
 
     if len(particles) == 0:
         return
 
-    alive = np.array([p.alive for p in particles], dtype=np.int32)
-    settled = np.array([p.settled for p in particles], dtype=np.int32)
-    age_days = np.array([p.age for p in particles], dtype=np.float64) / 86400.0
-    release_group = np.array([p.release_group for p in particles], dtype=np.int32)
+    # Read current particle information
+    alive = np.array(
+        [p.alive for p in particles],
+        dtype=np.int32
+    )
+
+    settled = np.array(
+        [p.settled for p in particles],
+        dtype=np.int32
+    )
+
+    age_days = np.array(
+        [p.age for p in particles],
+        dtype=np.float64
+    ) / 86400.0
+
+    release_group = np.array(
+        [p.release_group for p in particles],
+        dtype=np.int32
+    )
+
+    # ----------------------------------------------------------
+    # Process every release cohort separately
+    # ----------------------------------------------------------
 
     for g in np.unique(release_group):
+
         group_idx = np.where(release_group == g)[0]
 
         if len(group_idx) == 0:
             continue
 
-        # Future cohorts remain at age 0 until their release time.
-        current_age_days = float(np.max(age_days[group_idx]))
+        # Find the current age of this release group
+        current_age_days = float(
+            np.max(age_days[group_idx])
+        )
 
-        # Mortality is applied after a cohort has completed a full day.
-        mortality_day = int(np.floor(current_age_days + 1e-6))
+        # Mortality starts after the first complete day
+        mortality_day = int(
+            np.floor(current_age_days + 1e-6)
+        )
 
+        # Group has not completed Day 1 yet
         if mortality_day < 1:
             continue
 
-        # Prevent the same cohort-day from receiving mortality twice.
+        # ------------------------------------------------------
+        # Stop mortality after Day 180
+        # ------------------------------------------------------
+
+        if mortality_day > max_mortality_day:
+            continue
+
+        # ------------------------------------------------------
+        # Make sure the same cohort-day is not processed twice
+        # ------------------------------------------------------
+
         if mortality_last_day.get(int(g), 0) >= mortality_day:
             continue
 
-        daily_rate = initial_rate * (decay_factor ** (mortality_day - 1))
+        # ------------------------------------------------------
+        # Calculate normal declining mortality rate
+        # ------------------------------------------------------
+
+        calculated_rate = (
+            initial_rate *
+            (decay_factor ** (mortality_day - 1))
+        )
+
+        # ------------------------------------------------------
+        # APPLY 0.1% FLOOR
+        #
+        # If calculated mortality becomes less than 0.1%,
+        # keep mortality at 0.1%.
+        # ------------------------------------------------------
+
+        if calculated_rate < min_rate:
+            daily_rate = min_rate
+        else:
+            daily_rate = calculated_rate
+
+        # ------------------------------------------------------
+        # Only particles still alive AND not settled
+        # can experience mortality
+        # ------------------------------------------------------
 
         eligible_mask = (
             (alive[group_idx] == 1) &
             (settled[group_idx] == 0)
         )
 
-        eligible_local = np.where(eligible_mask)[0]
+        eligible_local = np.where(
+            eligible_mask
+        )[0]
 
+        # Nothing left in this cohort to kill
         if len(eligible_local) == 0:
+
             mortality_last_day[int(g)] = mortality_day
             continue
 
         alive_before = len(eligible_local)
 
-        # Round to the nearest whole particle.
-        n_kill = int(round(daily_rate * alive_before))
-        n_kill = min(n_kill, alive_before)
+        # ------------------------------------------------------
+        # Calculate how many particles die today
+        # ------------------------------------------------------
+
+        n_kill = int(
+            round(daily_rate * alive_before)
+        )
+
+        n_kill = min(
+            n_kill,
+            alive_before
+        )
+
+        # ------------------------------------------------------
+        # Randomly select particles that die
+        # ------------------------------------------------------
 
         if n_kill > 0:
+
             chosen_local = rng.choice(
                 eligible_local,
                 size=n_kill,
                 replace=False
             )
-            chosen_global = group_idx[chosen_local]
+
+            chosen_global = group_idx[
+                chosen_local
+            ]
 
             for idx in chosen_global:
+
                 particles[idx].alive = 0
                 particles[idx].kill_reason = 2
                 particles[idx].death_age = particles[idx].age
 
+        # Remember that this day has already been processed
         mortality_last_day[int(g)] = mortality_day
+
+        # ------------------------------------------------------
+        # Print results for checking
+        # ------------------------------------------------------
 
         print(
             f"Group {int(g)}: "
             f"mortality_day={mortality_day}, "
-            f"rate={daily_rate * 100:.2f}%, "
-            f"alive_before={alive_before}, "
-            f"killed={n_kill}, "
-            f"alive_after={alive_before - n_kill}"
+            f"calculated_rate={calculated_rate * 100:.4f}%, "
+            f"applied_rate={daily_rate * 100:.4f}%, "
+            f"alive_before={alive_before:,}, "
+            f"killed={n_kill:,}, "
+            f"alive_after={alive_before - n_kill:,}"
         )
-
-# In[45]:
 
 
 from parcels import ParticleSet
@@ -1894,11 +1988,13 @@ while elapsed_days < total_runtime_days:
     elapsed_days += step_days
     print(f"\nFinished model day {elapsed_days}")
 
-    apply_chunked_mortality(
-        pset,
-        initial_rate=INITIAL_MORTALITY_RATE,
-        decay_factor=MORTALITY_DECAY
-    )
+  apply_chunked_mortality(
+    pset,
+    initial_rate=INITIAL_MORTALITY_RATE,
+    decay_factor=MORTALITY_DECAY,
+    min_rate=MIN_MORTALITY_RATE,
+    max_mortality_day=MAX_MORTALITY_DAY
+)
 
 # tiny final flush so last mortality changes get written
 pset.execute(
