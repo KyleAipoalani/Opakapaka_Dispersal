@@ -1957,7 +1957,7 @@ from parcels import ErrorCode
 # CHANGE THESE
 # =========================
 total_runtime_days = 300      # test run first
-chunk_days = 1                # mortality checked once per day
+chunk_days = 1                # mortality checked once per 
 output_name = "OpakapakaOutput_2011_30m2.zarr"
 # =========================
 
