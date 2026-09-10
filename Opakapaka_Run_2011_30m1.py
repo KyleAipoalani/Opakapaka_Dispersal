@@ -1988,15 +1988,13 @@ while elapsed_days < total_runtime_days:
     elapsed_days += step_days
     print(f"\nFinished model day {elapsed_days}")
 
-  apply_chunked_mortality(
-    pset,
-    initial_rate=INITIAL_MORTALITY_RATE,
-    decay_factor=MORTALITY_DECAY,
-    min_rate=MIN_MORTALITY_RATE,
-    max_mortality_day=MAX_MORTALITY_DAY
-)
-
-# tiny final flush so last mortality changes get written
+    apply_chunked_mortality(
+        pset,
+        initial_rate=INITIAL_MORTALITY_RATE,
+        decay_factor=MORTALITY_DECAY,
+        min_rate=MIN_MORTALITY_RATE,
+        max_mortality_day=MAX_MORTALITY_DAY
+    )# tiny final flush so last mortality changes get written
 pset.execute(
     kernels,
     runtime=timedelta(minutes=2),
