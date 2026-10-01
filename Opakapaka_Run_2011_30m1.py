@@ -1958,8 +1958,7 @@ from parcels import ErrorCode
 # =========================
 total_runtime_days = 300      # test run first
 chunk_days = 1                # mortality checked once per 
-output_name = "OpakapakaOutput_2011_30m2.zarr"
-# =========================
+output_name = "/Volumes/One Touch/TPruitt/Output/OpakapakaOutput_2010_30m3.zarr"
 
 kernels = build_kernels(pset)
 
