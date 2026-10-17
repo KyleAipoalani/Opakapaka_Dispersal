@@ -1213,6 +1213,48 @@ release_counts = agg["n_particles"].to_numpy(int)
 print("Spawn points created:", int(release_counts.sum()))
 
 
+
+
+# ==========================================
+# REDUCE PARTICLES TO 1/10 FOR TEST RUN    Delete after test =================================================================================================>
+# ==========================================
+
+import numpy as np
+
+# Original number of particles per release
+original_total = int(release_counts.sum())
+
+# Keep approximately 10% of the particles
+target_total = round(original_total / 10)
+
+rng = np.random.default_rng(42)
+
+# Randomly select particles across release sites
+site_ids = np.repeat(np.arange(len(release_counts)), release_counts)
+selected = rng.choice(site_ids.size, size=target_total, replace=False)
+selected = site_ids[selected]
+
+# Update particle counts for each release site
+release_counts = np.bincount(
+    selected, minlength=len(release_counts)
+)
+
+print("Original particles per release:", original_total)
+print("Reduced particles per release:", release_counts.sum())
+print("Reduction: 90%")
+
+
+
+
+
+
+
+
+
+
+
+
+
 # In[34]:
 
 
