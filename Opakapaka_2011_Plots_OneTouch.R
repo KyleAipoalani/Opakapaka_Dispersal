@@ -51,6 +51,7 @@ def load_batch(start, end):
         return arr
     lon, lat = get('lon'), get('lat')
     age, settled, region = get('age'), get('settled'), get('settle_region')
+    release_region = get('release_region')
     if settled is None and region is None:
         raise ValueError('Neither settled nor settle_region exists. Cannot calculate connectivity.')
     if region is None:
@@ -62,6 +63,7 @@ def load_batch(start, end):
     rows = np.arange(lon.shape[0])
     release_lon = np.where(has_start, lon[rows, start_idx], np.nan)
     release_lat = np.where(has_start, lat[rows, start_idx], np.nan)
+    release_id = np.where(has_start, release_region[rows, start_idx], -1) if release_region is not None else np.full(len(rows), -1)
     # Prefer explicit settled flag; do NOT treat region alone as proof of settlement
     # if settled is available. Only the first settlement event counts.
     if settled is not None:
@@ -80,7 +82,7 @@ def load_batch(start, end):
     tracks_lon = lon[:, ::step].ravel()
     tracks_lat = lat[:, ::step].ravel()
     valid_tracks = np.isfinite(tracks_lon) & np.isfinite(tracks_lat)
-    return dict(release_lon=release_lon, release_lat=release_lat,
+    return dict(release_lon=release_lon, release_lat=release_lat, release_id=release_id,
                 first_lon=first_lon, first_lat=first_lat,
                 first_age=first_age, destination=dest, ever_settled=has_event,
                 track_lon=tracks_lon[valid_tracks], track_lat=tracks_lat[valid_tracks])
@@ -94,15 +96,26 @@ for (start in seq.int(0L, n_particles - 1L, by=batch_size)) {
   b <- py$load_batch(as.integer(start), as.integer(end))
   parts[[length(parts)+1L]] <- data.frame(
     release_lon=as.numeric(b$release_lon), release_lat=as.numeric(b$release_lat),
+    release_id=as.integer(b$release_id),
     settle_lon=as.numeric(b$first_lon), settle_lat=as.numeric(b$first_lat),
     age_days=as.numeric(b$first_age), destination=as.integer(b$destination),
     ever_settled=as.logical(b$ever_settled))
+  expected_batch <- end - start
+  if (nrow(parts[[length(parts)]]) != expected_batch) {
+    stop('Batch size mismatch at ', start, ': expected ', expected_batch,
+         ', received ', nrow(parts[[length(parts)]]), '. Stop before producing incorrect figures.')
+  }
   tr <- data.frame(lon=as.numeric(b$track_lon), lat=as.numeric(b$track_lat))
   if (nrow(tr) > 1000) tr <- tr[sample.int(nrow(tr), 1000), ,drop=FALSE]
   track_parts[[length(track_parts)+1L]] <- tr
   if (start %% (batch_size*10L) == 0L) cat('Processed', end, 'of', n_particles, 'trajectories\n')
 }
 particles <- do.call(rbind, parts)
+if (nrow(particles) != n_particles) {
+  stop('Particle count mismatch: Zarr=', n_particles, ', R=', nrow(particles),
+       '. Do not use connectivity results until corrected.')
+}
+cat('Verified one row per Zarr trajectory:', nrow(particles), '\n')
 tracks <- do.call(rbind, track_parts)
 rm(parts, track_parts)
 if (nrow(tracks) > max_map_points) tracks <- tracks[sample.int(nrow(tracks), max_map_points), ,drop=FALSE]
@@ -126,11 +139,15 @@ classify_release <- function(lon, lat) {
   out
 }
 regions <- c('Kauai','Niihau','Kaula','Oahu','Penguin Bank','Maui Nui','Hawaii')
-# Destination ID mapping follows your previous R script, NOT independently verified
-# against the 2011 model. Verify this mapping before reporting numerical results.
+# Region IDs checked against the uploaded Python model's classification and settlement code.
 region_id <- c('0'='Kauai','1'='Niihau','2'='Kaula','3'='Oahu',
                '4'='Penguin Bank','5'='Maui Nui','6'='Hawaii')
-particles$release <- classify_release(particles$release_lon, particles$release_lat)
+# Use the model's recorded release-region IDs, not approximate geographic boxes.
+# If IDs were not saved correctly, leave unclassified rather than guessing.
+particles$release <- unname(region_id[as.character(particles$release_id)])
+particles$release[is.na(particles$release)] <- 'Ocean / Unclassified'
+cat('Release region distribution (including unclassified):\n')
+print(table(particles$release, useNA='ifany'))
 particles$settlement <- unname(region_id[as.character(particles$destination)])
 particles$valid_pld <- particles$ever_settled & is.finite(particles$age_days) &
   particles$age_days >= pld_min_days & particles$age_days <= pld_max_days &
@@ -243,5 +260,5 @@ summary_df <- data.frame(
 write.csv(summary_df,file.path(output_dir,'2011_simulation_summary.csv'),row.names=FALSE)
 print(summary_df)
 cat('\nAll plots and tables saved to:', output_dir, '\n')
-cat('IMPORTANT: Confirm destination region IDs and release polygons against the 2011 Python run.\n')
-cat('IMPORTANT: This script cannot verify that the new Zarr data or TIFF exists until you run it on the Mac.\n')
+cat('Region IDs follow the uploaded Python model; inspect unclassified releases before presenting.\n')
+cat('Zarr and bathymetry paths were checked at the start of this run.\n')
